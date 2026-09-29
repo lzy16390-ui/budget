@@ -18,8 +18,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 'Golos Text',
 h1{font-size:22px;margin:4px 0 12px;letter-spacing:-.01em}
 .tt,.tt *,.tt *::before,.tt *::after{transition:background-color .4s ease,color .4s ease,border-color .4s ease,outline-color .4s ease!important}
 @media (prefers-reduced-motion:reduce){.tt,.tt *,.tt *::before,.tt *::after{transition:none!important}}
-.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
-.themebtn{border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;border-radius:999px;padding:6px 12px;cursor:pointer;margin-bottom:8px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.themebtn{border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;border-radius:999px;padding:6px 12px;cursor:pointer}
+.topbtns{display:flex;gap:8px;align-items:center}
+.iconbtn{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:17px;line-height:1;flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;cursor:pointer;font-family:inherit}
 h2{font-size:16px;margin:0 0 10px}
 nav{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px;overflow-x:auto}
 nav button{flex:1;white-space:nowrap;border:0;background:none;color:var(--mute);font:inherit;font-weight:500;padding:9px 12px;border-radius:9px;cursor:pointer;user-select:none}
@@ -118,7 +120,7 @@ nav button:active:not(:disabled),.seg button:active:not(:disabled){transform:non
 </head>
 <body>
 <div class="wrap">
-<div class="top"><h1>Мой бюджет</h1><button id="theme" class="themebtn" onclick="toggleTheme()"></button></div>
+<div class="top"><h1>Мой бюджет</h1><div class="topbtns"><button class="iconbtn" title="Сохранить резервную копию всех данных (файл на устройство)" aria-label="Экспорт резервной копии" onclick="exportAll()">⇩</button><button class="iconbtn" title="Загрузить резервную копию из файла — заменит все текущие данные" aria-label="Импорт резервной копии" onclick="pickCats()">⇧</button><input id="catf" type="file" accept=".json,application/json" hidden onchange="importCats(this)"><button id="theme" class="themebtn iconbtn" onclick="toggleTheme()"></button></div></div>
 <nav id="nav"></nav>
 <div id="app"></div>
 </div>
@@ -210,7 +212,7 @@ function catsView(){
    ${t==='e'?`<div class="row" style="align-items:center;margin:4px 0"><label style="margin:0;flex:0 0 auto" for="l${c.id}">Лимит на месяц, ₽</label><input id="l${c.id}" type="number" min="0" value="${c.limit||''}" placeholder="без лимита" style="max-width:150px" onchange="setLimit('${c.id}',this.value)"></div>`:''}
    <div>${c.subs.map(s=>`<span class="chip" draggable="true" ondragstart="dS(event,'s','${s.id}','${c.id}')" ondragend="dE()" ondragover="dO(event,'s','${s.id}','${c.id}')" ondrop="dD(event,'s','${s.id}','${c.id}')" ondragleave="dL(event)">${esc(s.name)}<button class="x" onclick="delSub('${c.id}','${s.id}')" aria-label="Удалить подкатегорию">✕</button></span>`).join('')}</div>
    <div class="row" style="margin-top:8px"><input id="s${c.id}" placeholder="Новая подкатегория" onkeydown="if(event.key==='Enter')addSub('${c.id}')"><button class="btn ghost" onclick="addSub('${c.id}')">Добавить</button></div></div>`).join('')||'<p class="empty">Категорий пока нет.</p>'}</div>`;
-  return `<div class="card"><div class="row" style="align-items:center"><span class="empty" style="flex:3 1 220px;margin:0">Меняйте порядок перетаскиванием: категории за значок ⠿, подкатегории целиком.</span><button class="btn ghost" onclick="sortAlpha()">Сортировать по алфавиту</button></div></div>`+block('e','Расходы')+block('i','Доходы')+`<div class="card"><h2>Новая категория</h2><div class="row"><div><label for="cn">Название</label><input id="cn" onkeydown="if(event.key==='Enter')addCat()"></div><div><label for="ct">Тип</label><select id="ct"><option value="e">Расход</option><option value="i">Доход</option></select></div><button class="btn" onclick="addCat()">Создать</button></div></div>`+`<div class="card"><h2>Экспорт и импорт настроек</h2><div class="row" style="align-items:center"><span class="empty" style="flex:3 1 220px;margin:0">Сохраняет все категории, подкатегории, лимиты и порядок. При импорте текущие настройки категорий полностью заменяются.</span><button class="btn ghost" onclick="exportCats()">Экспорт</button><button class="btn ghost" onclick="pickCats()">Импорт</button></div><input id="catf" type="file" accept=".json,application/json" hidden onchange="importCats(this)"></div>`;
+  return `<div class="card"><div class="row" style="align-items:center"><span class="empty" style="flex:3 1 220px;margin:0">Меняйте порядок перетаскиванием: категории за значок ⠿, подкатегории целиком.</span><button class="btn ghost" onclick="sortAlpha()">Сортировать по алфавиту</button></div></div>`+block('e','Расходы')+block('i','Доходы')+`<div class="card"><h2>Новая категория</h2><div class="row"><div><label for="cn">Название</label><input id="cn" onkeydown="if(event.key==='Enter')addCat()"></div><div><label for="ct">Тип</label><select id="ct"><option value="e">Расход</option><option value="i">Доход</option></select></div><button class="btn" onclick="addCat()">Создать</button></div></div>`;
 }
 function addCat(){const n=$('#cn').value.trim();if(!n){$('#cn').focus();return}S.cats.push({id:uid(),name:n,type:$('#ct').value,limit:0,subs:[]});if(!S.manual)sortAll();save();render()}
 function delCat(id){
@@ -389,10 +391,14 @@ function importCsv(inp){
   };
   rd.readAsArrayBuffer(file);
 }
-function exportCats(){
-  const data={kind:'budget-categories',version:1,exported:today(),manual:!!S.manual,
-    cats:S.cats.map(c=>({id:c.id,name:c.name,type:c.type,limit:c.limit||0,subs:c.subs.map(s=>({id:s.id,name:s.name}))}))};
-  saveFile('budget-categories-'+today()+'.json',JSON.stringify(data,null,2),'application/json;charset=utf-8',false);
+function exportAll(){
+  const data={kind:'budget-full',version:1,exported:today(),theme:curTheme(),
+    sumMode:S.sumMode==='donut'?'donut':'list',
+    tabOrder:orderedTabs().map(t=>t[0]),
+    manual:!!S.manual,
+    cats:S.cats.map(c=>({id:c.id,name:c.name,type:c.type,limit:c.limit||0,subs:c.subs.map(s=>({id:s.id,name:s.name}))})),
+    tx:S.tx.map(t=>({id:t.id,date:t.date,amount:t.amount,type:t.type,cat:t.cat,sub:t.sub,note:t.note||''}))};
+  saveFile('budget-backup-'+today()+'.json',JSON.stringify(data,null,2),'application/json;charset=utf-8',false);
 }
 function pickCats(){const f=$('#catf');f.value='';f.click()}
 function importCats(inp){
@@ -402,34 +408,45 @@ function importCats(inp){
   rd.onload=()=>{
     try{
       let data;
-      try{data=JSON.parse(decodeCsv(rd.result).replace(/^\ufeff/,''))}catch(e){alert('Не удалось прочитать файл: это не экспорт настроек категорий.');return}
-      if(!data||data.kind!=='budget-categories'||!Array.isArray(data.cats)){alert('Этот файл не является экспортом настроек категорий.');return}
-      const seen=new Set();
-      const nid=id=>{if(typeof id!=='string'||!id||seen.has(id)){do{id=uid()}while(seen.has(id))}seen.add(id);return id};
-      const cats=[];
+      try{data=JSON.parse(decodeCsv(rd.result).replace(/^\ufeff/,''))}catch(e){alert('Не удалось прочитать файл: это не резервная копия бюджета.');return}
+      if(!data||data.kind!=='budget-full'||!Array.isArray(data.cats)||!Array.isArray(data.tx)){alert('Этот файл не является резервной копией бюджета.');return}
+      const usedIds=new Set();
+      const nid=id=>{if(typeof id==='string'&&id&&!usedIds.has(id)){usedIds.add(id);return id}let n;do{n=uid()}while(usedIds.has(n));usedIds.add(n);return n};
+      const cats=[],cmap={},byId={};
       for(const c of data.cats){
         const name=String(c&&c.name||'').trim();
         if(!name||(c.type!=='e'&&c.type!=='i')){alert('Некорректные данные: у категории нет названия или типа.');return}
-        const subs=(Array.isArray(c.subs)?c.subs:[]).map(s=>({id:nid(s&&s.id),name:String(s&&s.name||'').trim()})).filter(s=>s.name);
-        cats.push({id:nid(c.id),name,type:c.type,limit:Math.max(0,parseFloat(c.limit)||0),subs});
+        const newId=nid(c&&c.id);if(c&&typeof c.id==='string')cmap[c.id]=newId;
+        const smap={};
+        const subs=(Array.isArray(c.subs)?c.subs:[]).map(s=>{
+          const sname=String(s&&s.name||'').trim();if(!sname)return null;
+          const newSid=nid(s&&s.id);if(s&&typeof s.id==='string')smap[s.id]=newSid;
+          return{id:newSid,name:sname};
+        }).filter(Boolean);
+        const cat={id:newId,name,type:c.type,limit:Math.max(0,parseFloat(c.limit)||0),subs};
+        cats.push(cat);byId[newId]={cat,smap};
+      }
+      const tx=[];
+      for(const t of data.tx){
+        const date=typeof t.date==='string'?t.date:'';
+        const amount=Number(t&&t.amount);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!isFinite(amount)||amount<=0||(t.type!=='e'&&t.type!=='i')){alert('Некорректные данные в операциях.');return}
+        let cat='',sub='';
+        if(t.cat&&cmap[t.cat]){
+          const nc=byId[cmap[t.cat]];
+          if(nc&&nc.cat.type===t.type){cat=nc.cat.id;if(t.sub&&nc.smap[t.sub])sub=nc.smap[t.sub]}
+        }
+        tx.push({id:nid(t.id),date,amount,type:t.type,cat,sub,note:String(t&&t.note||'').trim()});
       }
       const nsub=cats.reduce((a,c)=>a+c.subs.length,0);
-      if(!confirm('Заменить все текущие категории, подкатегории и их порядок данными из файла?\nВ файле: категорий — '+cats.length+', подкатегорий — '+nsub+'.\nОперации сохранятся и будут привязаны к категориям по названию.'))return;
-      // запоминаем, к какой категории/подкатегории (по названию) относится каждая операция
-      const snap=S.tx.map(t=>{const c=catById(t.cat);return {t,c:c&&{n:c.name,ty:c.type},s:c?subName(c,t.sub):''}});
-      S.cats=cats;S.manual=!!data.manual;
+      if(!confirm('Заменить ВСЕ текущие данные — категории, подкатегории, операции, порядок вкладок и вид сводки — данными из файла?\nВ файле: категорий — '+cats.length+', подкатегорий — '+nsub+', операций — '+tx.length+'.\nЭто действие необратимо.'))return;
+      S.cats=cats;S.tx=tx;S.manual=!!data.manual;
       if(!S.manual)sortAll();
-      let lost=0;
-      snap.forEach(({t,c,s})=>{
-        if(!c)return;
-        const nc=S.cats.find(x=>x.type===c.ty&&x.name.toLowerCase()===c.n.toLowerCase());
-        if(!nc){t.cat='';t.sub='';lost++;return}
-        t.cat=nc.id;
-        const ns=s?nc.subs.find(x=>x.name.toLowerCase()===s.toLowerCase()):null;
-        t.sub=ns?ns.id:'';
-      });
-      save();render();
-      alert('Настройки импортированы. Категорий: '+cats.length+', подкатегорий: '+nsub+'.'+(lost?'\nОпераций без категории в новых настройках: '+lost+'.':''));
+      S.sumMode=data.sumMode==='donut'?'donut':'list';ui.sumMode=S.sumMode;
+      if(Array.isArray(data.tabOrder)&&data.tabOrder.length)S.tabOrder=data.tabOrder.filter(k=>tabs.some(t=>t[0]===k));
+      if(data.theme==='light'||data.theme==='dark'){document.documentElement.dataset.theme=data.theme;try{localStorage.setItem(THEME_KEY,data.theme)}catch(e){}paintTheme()}
+      save();ui.tab='ops';render();
+      alert('Данные импортированы. Категорий: '+cats.length+', подкатегорий: '+nsub+', операций: '+tx.length+'.');
     }catch(e){alert('Ошибка импорта: '+(e&&e.message||e))}
   };
   rd.readAsArrayBuffer(file);
@@ -511,7 +528,7 @@ function render(keep){
 const THEME_KEY='budget-theme';
 const sysDark=()=>window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches;
 function curTheme(){const t=document.documentElement.dataset.theme;return t||(sysDark()?'dark':'light')}
-function paintTheme(){const d=curTheme()==='dark';const b=document.getElementById('theme');if(b){b.textContent=d?'☀ Светлая':'☾ Тёмная';b.setAttribute('aria-label',d?'Включить светлую тему':'Включить тёмную тему')}}
+function paintTheme(){const d=curTheme()==='dark';const b=document.getElementById('theme');if(b){b.textContent=d?'☀':'☾';const l=d?'Включить светлую тему':'Включить тёмную тему';b.setAttribute('aria-label',l);b.title=l}}
 let ttTimer;
 function toggleTheme(){const n=curTheme()==='dark'?'light':'dark';const h=document.documentElement;h.classList.add('tt');clearTimeout(ttTimer);ttTimer=setTimeout(()=>h.classList.remove('tt'),600);h.dataset.theme=n;try{localStorage.setItem(THEME_KEY,n)}catch(e){}paintTheme()}
 try{const t=localStorage.getItem(THEME_KEY);if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}
