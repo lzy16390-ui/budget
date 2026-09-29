@@ -297,7 +297,7 @@ function repView(){
   const n=Math.max(1,keys.length);
   const table=(type,title)=>{const rows=breakdown(list,type);const tot=type==='e'?exp:inc;if(!rows.length)return '';
    return `<div class="card"><h2>${title}</h2><div class="scroll"><table><tr><th>Категория</th><th>Сумма</th><th>Доля</th></tr>${rows.map(r=>`<tr><td><b>${esc(r.c?r.c.name:'Без категории')}</b></td><td><b>${money(r.total)}</b></td><td>${Math.round(r.total/tot*100)}%</td></tr>${Object.entries(r.subs).filter(([k])=>k||Object.keys(r.subs).length>1).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr class="s"><td>${esc(k?subName(r.c,k):'Без подкатегории')}</td><td>${money(v)}</td><td>${Math.round(v/tot*100)}%</td></tr>`).join('')}`).join('')}<tr><td><b>Итого</b></td><td><b>${money(tot)}</b></td><td></td></tr></table></div></div>`};
-  return `<div class="card"><h2>Период отчёта</h2><div class="row"><div><label for="f">С</label><input id="f" type="date" value="${ui.from}" onchange="ui.from=this.value;render()"></div><div><label for="t">По</label><input id="t" type="date" value="${ui.to}" onchange="ui.to=this.value;render()"></div><button class="btn ghost" onclick="copyRep()">Копировать текстом</button><button class="btn ghost" onclick="exportCsv()">Экспорт CSV</button><button class="btn ghost" onclick="pickCsv()">Импорт CSV</button></div><input id="csvf" type="file" accept=".csv,text/csv" hidden onchange="importCsv(this)"><p class="empty" style="margin:8px 0 0">Экспорт выгружает операции выбранного периода. При импорте операции добавляются к текущим, недостающие категории создаются, дубликаты пропускаются.</p></div>
+  return `<div class="card"><h2>Период отчёта</h2><div class="row"><div><label for="f">С</label><input id="f" type="date" value="${ui.from}" onchange="ui.from=this.value;render()"></div><div><label for="t">По</label><input id="t" type="date" value="${ui.to}" onchange="ui.to=this.value;render()"></div><button class="btn ghost" onclick="copyRep()">Копировать текстом</button><button id="xlsxBtn" class="btn ghost" onclick="exportXlsx()">Экспорт Excel</button><button class="btn ghost" onclick="exportCsv()">Экспорт CSV</button><button class="btn ghost" onclick="pickCsv()">Импорт CSV</button></div><input id="csvf" type="file" accept=".csv,text/csv" hidden onchange="importCsv(this)"><p class="empty" style="margin:8px 0 0">Экспорт выгружает операции выбранного периода. При импорте операции добавляются к текущим, недостающие категории создаются, дубликаты пропускаются.</p></div>
   <div class="kpis"><div class="kpi"><small>Доходы</small><b class="inc">${money(inc)}</b></div><div class="kpi"><small>Расходы</small><b class="exp">${money(exp)}</b></div><div class="kpi"><small>Итог периода</small><b class="${inc-exp<0?'exp':''}">${money(inc-exp)}</b></div><div class="kpi"><small>Расходы в месяц, в среднем</small><b>${money(Math.round(exp/n))}</b></div></div>
   ${keys.length?`<div class="card"><h2>Динамика по месяцам</h2><div class="mbars">${keys.map(k=>`<div class="mb"><div class="p"><i style="height:${months[k].i/max*100}px;background:var(--inc)" title="Доход ${money(months[k].i)}"></i><i style="height:${months[k].e/max*100}px;background:var(--exp)" title="Расход ${money(months[k].e)}"></i></div>${k.slice(5)}.${k.slice(2,4)}</div>`).join('')}</div><p class="empty" style="margin-bottom:0"><span class="inc">■</span> доходы &nbsp; <span class="exp">■</span> расходы</p></div>`:'<div class="card"><p class="empty">За выбранный период операций нет.</p></div>'}
   ${table('e','Расходы по категориям')}${table('i','Доходы по категориям')}`;
@@ -318,6 +318,90 @@ async function saveFile(name,text,mime='text/csv;charset=utf-8',bom=true){
     if(d){await d.save({filename:name,data});return}
   }catch(e){if(e&&e.code==='declined')return}
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:mime}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+const fmtD=s=>s&&s.split('-').reverse().join('.');
+let _xlsxLoad=null;
+function loadExcelJS(){
+  if(window.ExcelJS)return Promise.resolve();
+  if(_xlsxLoad)return _xlsxLoad;
+  _xlsxLoad=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload=res;s.onerror=()=>{_xlsxLoad=null;rej(new Error('load-failed'))};
+    document.head.appendChild(s);
+  });
+  return _xlsxLoad;
+}
+function buildReportWorkbook(list){
+  const inc=sumBy(list,'i'),exp=sumBy(list,'e');
+  const months={};list.forEach(t=>{const m=months[t.date.slice(0,7)]=months[t.date.slice(0,7)]||{i:0,e:0};m[t.type]+=t.amount});
+  const keys=Object.keys(months).sort();const n=Math.max(1,keys.length);
+  const C={teal:'FF0E7C66',tealL:'FFE4F2EE',red:'FFC4483A',ink:'FF12302B',mute:'FF5D7570',line:'FFD5E0DD',white:'FFFFFFFF',stripe:'FFF5F8F7'};
+  const RUB='#,##0.00 ₽;-#,##0.00 ₽;0 ₽';
+  const wb=new ExcelJS.Workbook();wb.creator='Мой бюджет';wb.created=new Date();
+  const ws=wb.addWorksheet('Отчёт');
+  ws.columns=[{width:36},{width:16},{width:10},{width:16}];
+  let r=1;
+  ws.mergeCells(r,1,r,3);ws.getCell(r,1).value='Мой бюджет — отчёт';ws.getCell(r,1).font={bold:true,size:16,color:{argb:C.teal}};r++;
+  ws.mergeCells(r,1,r,3);ws.getCell(r,1).value='Период: '+fmtD(list.length?ui.from:ui.from)+' — '+fmtD(ui.to);ws.getCell(r,1).font={size:11,color:{argb:C.mute}};r+=2;
+  const kpis=[['Доходы',inc,C.teal],['Расходы',exp,C.red],['Итог периода',inc-exp,inc-exp<0?C.red:C.teal],['Расходы в месяц, в среднем',Math.round(exp/n),C.ink]];
+  const r0=r;
+  kpis.forEach((k,i)=>{
+    ws.getCell(r0,1+i).value=k[0];ws.getCell(r0,1+i).font={size:10,color:{argb:C.mute}};
+    ws.getCell(r0+1,1+i).value=k[1];ws.getCell(r0+1,1+i).font={bold:true,size:13,color:{argb:k[2]}};ws.getCell(r0+1,1+i).numFmt=RUB;
+  });
+  r=r0+3;
+  const hdrRow=(cols,accent)=>{cols.forEach((h,i)=>{const c=ws.getCell(r,1+i);c.value=h;c.font={bold:true,color:{argb:C.white}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:accent}};c.alignment={horizontal:i?'right':'left'};});r++};
+  if(keys.length){
+    ws.getCell(r,1).value='Динамика по месяцам';ws.getCell(r,1).font={bold:true,size:12,color:{argb:C.ink}};r++;
+    hdrRow(['Месяц','Доход','Расход'],C.teal);
+    keys.forEach((k,idx)=>{
+      const row=r+idx,stripe=idx%2?C.stripe:null;
+      [1,2,3].forEach(cc=>{if(stripe)ws.getCell(row,cc).fill={type:'pattern',pattern:'solid',fgColor:{argb:stripe}}});
+      ws.getCell(row,1).value=k;
+      ws.getCell(row,2).value=months[k].i;ws.getCell(row,2).numFmt=RUB;ws.getCell(row,2).font={color:{argb:C.teal}};ws.getCell(row,2).alignment={horizontal:'right'};
+      ws.getCell(row,3).value=months[k].e;ws.getCell(row,3).numFmt=RUB;ws.getCell(row,3).font={color:{argb:C.red}};ws.getCell(row,3).alignment={horizontal:'right'};
+    });
+    r+=keys.length+2;
+  }
+  const addTable=(type,titleText)=>{
+    const rows=breakdown(list,type);if(!rows.length)return;
+    const tot=type==='e'?exp:inc,accent=type==='e'?C.red:C.teal;
+    ws.getCell(r,1).value=titleText;ws.getCell(r,1).font={bold:true,size:12,color:{argb:C.ink}};r++;
+    hdrRow(['Категория','Сумма','Доля'],accent);
+    rows.forEach(row=>{
+      ws.getCell(r,1).value=row.c?row.c.name:'Без категории';ws.getCell(r,1).font={bold:true,color:{argb:C.ink}};
+      ws.getCell(r,2).value=row.total;ws.getCell(r,2).numFmt=RUB;ws.getCell(r,2).font={bold:true};ws.getCell(r,2).alignment={horizontal:'right'};
+      ws.getCell(r,3).value=row.total/tot;ws.getCell(r,3).numFmt='0%';ws.getCell(r,3).alignment={horizontal:'right'};r++;
+      Object.entries(row.subs).filter(([k])=>k||Object.keys(row.subs).length>1).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{
+        ws.getCell(r,1).value='    '+(k?subName(row.c,k):'Без подкатегории');ws.getCell(r,1).font={italic:true,color:{argb:C.mute}};
+        ws.getCell(r,2).value=v;ws.getCell(r,2).numFmt=RUB;ws.getCell(r,2).font={color:{argb:C.mute}};ws.getCell(r,2).alignment={horizontal:'right'};
+        ws.getCell(r,3).value=v/tot;ws.getCell(r,3).numFmt='0%';ws.getCell(r,3).font={color:{argb:C.mute}};ws.getCell(r,3).alignment={horizontal:'right'};r++;
+      });
+    });
+    ['A','B','C'].forEach(col=>ws.getCell(col+r).border={top:{style:'thin',color:{argb:C.line}}});
+    ws.getCell(r,1).value='Итого';ws.getCell(r,1).font={bold:true};
+    ws.getCell(r,2).value=tot;ws.getCell(r,2).numFmt=RUB;ws.getCell(r,2).font={bold:true};ws.getCell(r,2).alignment={horizontal:'right'};
+    r+=2;
+  };
+  addTable('e','Расходы по категориям');
+  addTable('i','Доходы по категориям');
+  return wb;
+}
+async function exportXlsx(){
+  const list=S.tx.filter(t=>t.date>=ui.from&&t.date<=ui.to).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!list.length){alert('За выбранный период операций нет.');return}
+  const btn=$('#xlsxBtn'),old=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Формирование…'}
+  try{
+    await loadExcelJS();
+    const wb=buildReportWorkbook(list);
+    const buf=await wb.xlsx.writeBuffer();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    a.download='budget-'+ui.from+'_'+ui.to+'.xlsx';document.body.appendChild(a);a.click();a.remove();
+  }catch(e){alert('Не удалось создать Excel-файл. Проверьте подключение к интернету и попробуйте ещё раз.')}
+  finally{if(btn){btn.disabled=false;btn.textContent=old}}
 }
 function exportCsv(){
   const list=S.tx.filter(t=>t.date>=ui.from&&t.date<=ui.to).sort((a,b)=>a.date.localeCompare(b.date));
